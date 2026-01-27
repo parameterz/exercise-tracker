@@ -1,39 +1,40 @@
-# 6-Month Exercise & Weight Loss Tracker
+# Exercise Tracker - Getting Started
 
-A personal fitness tracker designed for a 6-month weight loss and strength training journey.
+## What You Have
 
-## Goal
-- Starting weight: 178 lbs
-- Target weight: Under 170 lbs
-- Timeline: 6 months (ending July 1st)
-- Age: 60 years old
+A minimal 11ty site with:
+- ✅ One exercise (Goblet Squat)
+- ✅ Simple exercise library page
+- ✅ Pico CSS for beautiful, semantic styling
 
-## Features
-- ✅ 24-week progressive exercise program (3 phases)
-- ✅ Daily weight tracking with 7-day averages
-- ✅ Weekly workout completion tracking
-- ✅ Progress notes for each week
-- ✅ Automatic progress calculation
-- ✅ All data saved locally in browser storage
+## Let's Get It Running!
 
-## Equipment Used
-- 2x 25lb kettlebells
-- 2x 20lb dumbbells
-- Assault air bike
-- Daily walking (10-14k steps)
+### 1. Install 11ty
 
-## How to Use
-1. Open `index.html` in your web browser
-2. Log your weight daily
-3. Check off exercises as you complete them
-4. Add weekly notes about your progress
-5. Advance to the next week when ready
+```bash
+cd tracker-v2
+npm install
+```
 
-## Technical Details
-- Single HTML file with embedded React
-- Uses browser localStorage for data persistence
-- No server required - runs completely offline
-- Mobile responsive design
+### 2. Start the dev server
 
-## Version History
-- v1.0 (2025-01-26) - Initial version with daily weight tracking
+```bash
+npm start
+```
+
+### 3. Open your browser
+
+Go to `http://localhost:8080`
+
+You should see your exercise library with one exercise!
+
+## Next Steps
+
+Once this is working, we can add:
+- More exercises
+- Workout tracking
+- Better styling
+- GitHub sync
+- Whatever you want!
+
+But first - **get this running and make sure it works!** 🚀

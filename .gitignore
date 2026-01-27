@@ -1,14 +1,3 @@
-# OS files
+node_modules/
+_site/
 .DS_Store
-Thumbs.db
-
-# Editor files
-*.swp
-*.swo
-*~
-.vscode/
-.idea/
-
-# Backup files
-*.backup
-*.bak
