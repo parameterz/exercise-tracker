@@ -6,6 +6,9 @@ A minimal 11ty site with:
 - ✅ One exercise (Goblet Squat)
 - ✅ Simple exercise library page
 - ✅ Pico CSS for beautiful, semantic styling
+- ✅ Workout logging with localStorage
+- ✅ Exercise completion tracking
+- ✅ Workout history
 
 ## Let's Get It Running!
 

@@ -20,10 +20,21 @@
             font-size: 0.875rem;
             margin-right: 0.5rem;
         }
+        nav {
+            margin-bottom: 2rem;
+        }
+        nav a {
+            margin-right: 1rem;
+        }
     </style>
 </head>
 <body>
     <main class="container">
+        <nav>
+            <a href="/"><strong>Exercise Library</strong></a>
+            <a href="/log-workout/">Log Workout</a>
+        </nav>
+        
         <h1>💪 Exercise Library</h1>
         
         {% for exercise in collections.exercises %}

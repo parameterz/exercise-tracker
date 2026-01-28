@@ -5,6 +5,11 @@ module.exports = function(eleventyConfig) {
     return collectionApi.getFilteredByGlob("exercises/*.md");
   });
   
+  // Add default filter for Nunjucks
+  eleventyConfig.addFilter("default", function(value, defaultValue) {
+    return value === undefined || value === null ? defaultValue : value;
+  });
+  
   return {
     dir: {
       input: ".",
