@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workout Tracker - Apps Script Edition</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // ============= CONFIGURATION =============
+        // After deploying your Apps Script, paste the Web App URL here:
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwdVzAae9uMCT-YluSSmjQtramRpCy-xWl0muHXDsfxPg8hdDaesyQGo0B16tJof8Wd/exec';
+        // It looks like: https://script.google.com/macros/s/AKfycby.../exec
+
+        // ============= SVG ICONS =============
+        const Check = ({ size = 24, className = "" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+        );
+
+        const ChevronDown = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+        );
+
+        const ChevronUp = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="18 15 12 9 6 15"></polyline>
+            </svg>
+        );
+
+        // ============= APPS SCRIPT API =============
+        class AppsScriptAPI {
+            constructor(url) {
+                this.url = url;
+            }
+
+            async read(sheetName) {
+                try {
+                    const response = await fetch(`${this.url}?sheet=${sheetName}`);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const result = await response.json();
+                    return result.data || [];
+                } catch (error) {
+                    console.error('Read error:', error);
+                    return [];
+                }
+            }
+
+            async append(sheetName, values) {
+                try {
+                    const response = await fetch(this.url, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            sheet: sheetName,
+                            action: 'append',
+                            values: values
+                        })
+                    });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return await response.json();
+                } catch (error) {
+                    console.error('Append error:', error);
+                    throw error;
+                }
+            }
+        }
+
+        // ============= MAIN APP =============
+        function ExerciseTracker() {
+            const [api, setApi] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [saving, setSaving] = useState(false);
+            const [lastSync, setLastSync] = useState(null);
+            
+            // State
+            const [currentWeek, setCurrentWeek] = useState(1);
+            const [completedWorkouts, setCompletedWorkouts] = useState({});
+            const [weightLog, setWeightLog] = useState({});
+            const [dailyWeights, setDailyWeights] = useState({});
+            const [weekNotes, setWeekNotes] = useState({});
+            
+            // UI State
+            const [expandedPhase, setExpandedPhase] = useState(1);
+            const [expandedWeek, setExpandedWeek] = useState({});
+            const [expandedDay, setExpandedDay] = useState({});
+            const [showWeightModal, setShowWeightModal] = useState(false);
+            const [tempWeight, setTempWeight] = useState('');
+            const [selectedWeek, setSelectedWeek] = useState(1);
+            const [todayWeight, setTodayWeight] = useState('');
+
+            // ============= DATA LOADING =============
+            useEffect(() => {
+                if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+                    setLoading(false);
+                    return;
+                }
+                loadData();
+            }, []);
+
+            async function loadData() {
+                try {
+                    const scriptsApi = new AppsScriptAPI(APPS_SCRIPT_URL);
+                    setApi(scriptsApi);
+
+                    // Load all data
+                    const [workouts, weights, daily, notes] = await Promise.all([
+                        scriptsApi.read('workouts'),
+                        scriptsApi.read('weight_log'),
+                        scriptsApi.read('daily_weights'),
+                        scriptsApi.read('week_notes')
+                    ]);
+
+                    console.log('Loaded data:', { workouts, weights, daily, notes });
+
+                    // Parse workouts (skip header row)
+                    const workoutMap = {};
+                    if (workouts && workouts.length > 1) {
+                        workouts.slice(1).forEach(row => {
+                            if (row && row.length >= 4) {
+                                const [week, day, exercise, completed] = row;
+                                if (week && day !== undefined && exercise !== undefined) {
+                                    const key = `w${week}-d${day}-e${exercise}`;
+                                    // Handle both boolean true and string "TRUE"
+                                    const isCompleted = completed === 'TRUE' || completed === true || completed === 'true';
+                                    workoutMap[key] = isCompleted;
+                                    console.log('Parsed workout:', key, '- raw value:', completed, '- parsed as:', isCompleted);
+                                }
+                            }
+                        });
+                    }
+
+                    // Parse weight log
+                    const weightMap = {};
+                    if (weights && weights.length > 1) {
+                        weights.slice(1).forEach(row => {
+                            if (row && row.length >= 3) {
+                                const [date, week, weight] = row;
+                                if (week && weight) {
+                                    weightMap[week] = parseFloat(weight);
+                                }
+                            }
+                        });
+                    }
+
+                    // Parse daily weights
+                    const dailyMap = {};
+                    if (daily && daily.length > 1) {
+                        daily.slice(1).forEach(row => {
+                            if (row && row.length >= 2) {
+                                const [date, weight] = row;
+                                if (date && weight) {
+                                    dailyMap[date] = parseFloat(weight);
+                                }
+                            }
+                        });
+                    }
+
+                    // Parse notes
+                    const notesMap = {};
+                    if (notes && notes.length > 1) {
+                        notes.slice(1).forEach(row => {
+                            if (row && row.length >= 2) {
+                                const [week, note] = row;
+                                if (week) {
+                                    notesMap[week] = note || '';
+                                }
+                            }
+                        });
+                    }
+
+                    console.log('Parsed state:', {
+                        workouts: Object.keys(workoutMap).length,
+                        weights: Object.keys(weightMap).length,
+                        daily: Object.keys(dailyMap).length
+                    });
+                    console.log('Setting workoutMap:', workoutMap);
+
+                    setCompletedWorkouts(workoutMap);
+                    setWeightLog(weightMap);
+                    setDailyWeights(dailyMap);
+                    setWeekNotes(notesMap);
+                    setLastSync(new Date());
+                    setLoading(false);
+
+                    // Debug: Log state after setting
+                    setTimeout(() => {
+                        console.log('State after setting:', {
+                            completedWorkouts: Object.keys(workoutMap).length + ' keys set'
+                        });
+                    }, 100);
+
+                } catch (error) {
+                    console.error('Load error:', error);
+                    alert('Failed to load data. Check your Apps Script URL and deployment settings.');
+                    setLoading(false);
+                }
+            }
+
+            // ============= SAVE FUNCTIONS =============
+            async function toggleWorkout(week, dayId, exerciseId) {
+                if (!api) return;
+                
+                const key = `w${week}-d${dayId}-e${exerciseId}`;
+                const newValue = !completedWorkouts[key];
+                
+                // Optimistic update
+                setCompletedWorkouts(prev => ({ ...prev, [key]: newValue }));
+                
+                try {
+                    setSaving(true);
+                    // Save as boolean true/false (not string "TRUE"/"FALSE")
+                    await api.append('workouts', [week, dayId, exerciseId, newValue]);
+                    setLastSync(new Date());
+                } catch (error) {
+                    console.error('Save error:', error);
+                    setCompletedWorkouts(prev => ({ ...prev, [key]: !newValue }));
+                    alert('Failed to save. Please try again.');
+                } finally {
+                    setSaving(false);
+                }
+            }
+
+            async function saveWeightForWeek() {
+                if (!tempWeight || !selectedWeek || !api) return;
+                
+                const today = new Date().toISOString().split('T')[0];
+                const weight = parseFloat(tempWeight);
+                
+                try {
+                    setSaving(true);
+                    await api.append('weight_log', [today, selectedWeek, weight]);
+                    setWeightLog(prev => ({ ...prev, [selectedWeek]: weight }));
+                    setShowWeightModal(false);
+                    setTempWeight('');
+                    setLastSync(new Date());
+                } catch (error) {
+                    alert('Failed to save weight.');
+                } finally {
+                    setSaving(false);
+                }
+            }
+
+            async function saveDailyWeight() {
+                if (!todayWeight || !api) return;
+                
+                const today = new Date().toISOString().split('T')[0];
+                const weight = parseFloat(todayWeight);
+                
+                try {
+                    setSaving(true);
+                    await api.append('daily_weights', [today, weight, '']);
+                    setDailyWeights(prev => ({ ...prev, [today]: weight }));
+                    setTodayWeight('');
+                    setLastSync(new Date());
+                } catch (error) {
+                    alert('Failed to save daily weight.');
+                } finally {
+                    setSaving(false);
+                }
+            }
+
+            // ============= UI HELPERS =============
+            const getRecentDailyWeights = () => {
+                return Object.entries(dailyWeights)
+                    .sort((a, b) => new Date(b[0]) - new Date(a[0]))
+                    .slice(0, 14);
+            };
+
+            const getWeeklyAverage = () => {
+                const recent = getRecentDailyWeights().slice(0, 7);
+                if (recent.length === 0) return null;
+                const sum = recent.reduce((acc, [_, weight]) => acc + weight, 0);
+                return (sum / recent.length).toFixed(1);
+            };
+
+            const getWeekCompletion = (week) => {
+                const weekWorkouts = Object.keys(completedWorkouts).filter(key => 
+                    key.startsWith(`w${week}-`)
+                );
+                const completed = weekWorkouts.filter(key => completedWorkouts[key]).length;
+                return weekWorkouts.length > 0 ? Math.round((completed / weekWorkouts.length) * 100) : 0;
+            };
+
+            const toggleWeek = (phaseId, week) => {
+                const key = `${phaseId}-${week}`;
+                setExpandedWeek(prev => ({ ...prev, [key]: !prev[key] }));
+            };
+
+            const toggleDay = (week, dayId) => {
+                const key = `${week}-${dayId}`;
+                setExpandedDay(prev => ({ ...prev, [key]: !prev[key] }));
+            };
+
+            const goToWeek = (week) => {
+                setCurrentWeek(week);
+                const phase = week <= 6 ? 1 : week <= 14 ? 2 : 3;
+                setExpandedPhase(phase);
+                setExpandedWeek({ [`${phase}-${week}`]: true });
+            };
+
+            // ============= WORKOUT DATA =============
+            const phases = [
+                {
+                    id: 1,
+                    name: "Phase 1: Foundation (Weeks 1-6)",
+                    weeks: [1, 2, 3, 4, 5, 6],
+                    schedule: [
+                        {
+                            id: 1,
+                            day: "Monday - Strength A",
+                            exercises: [
+                                { name: "Goblet Squats (2x8)" },
+                                { name: "Dumbbell Rows (2x10)" },
+                                { name: "Floor Press (2x10)" },
+                                { name: "Plank (2x20s)" },
+                            ]
+                        },
+                        {
+                            id: 2,
+                            day: "Tuesday - Cardio",
+                            exercises: [
+                                { name: "Walk 10-14k steps" },
+                                { name: "Assault Bike 10min (optional)" },
+                            ]
+                        },
+                        {
+                            id: 3,
+                            day: "Wednesday - Strength B",
+                            exercises: [
+                                { name: "KB Deadlifts (2x10)" },
+                                { name: "Push-ups (2x8)" },
+                                { name: "DB Shoulder Press (2x8)" },
+                                { name: "Bicycle Crunches (2x10)" },
+                            ]
+                        },
+                        {
+                            id: 4,
+                            day: "Thursday - Walk",
+                            exercises: [
+                                { name: "Walk 10-14k steps" },
+                            ]
+                        },
+                        {
+                            id: 5,
+                            day: "Friday - Strength A",
+                            exercises: [
+                                { name: "Goblet Squats (2x8)" },
+                                { name: "Dumbbell Rows (2x10)" },
+                                { name: "Floor Press (2x10)" },
+                                { name: "Plank (2x20s)" },
+                            ]
+                        },
+                        {
+                            id: 6,
+                            day: "Saturday - Active Recovery",
+                            exercises: [
+                                { name: "Easy walk 30-40 min" },
+                                { name: "Stretching 15 min" },
+                            ]
+                        },
+                        {
+                            id: 7,
+                            day: "Sunday - Rest",
+                            exercises: [
+                                { name: "Full rest day" },
+                            ]
+                        }
+                    ]
+                },
+            ];
+
+            // ============= RENDER =============
+            if (loading) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
+                        <div className="text-gray-600">Loading from Google Sheets...</div>
+                    </div>
+                );
+            }
+
+            if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl">
+                            <h2 className="text-2xl font-bold text-red-600 mb-4">⚙️ Setup Required</h2>
+                            <p className="text-gray-700 mb-4">
+                                You need to deploy a Google Apps Script to make this work.
+                            </p>
+                            <ol className="list-decimal list-inside text-sm text-gray-600 space-y-2 mb-4">
+                                <li>Open your Google Sheet</li>
+                                <li>Extensions → Apps Script</li>
+                                <li>Copy the code from GoogleAppsScript.gs</li>
+                                <li>Deploy → New deployment</li>
+                                <li>Type: Web app</li>
+                                <li>Execute as: Me</li>
+                                <li>Who has access: Anyone</li>
+                                <li>Copy the Web App URL</li>
+                                <li>Paste it into APPS_SCRIPT_URL in this file</li>
+                            </ol>
+                            <p className="text-sm text-gray-500">
+                                See the instructions file for detailed steps!
+                            </p>
+                        </div>
+                    </div>
+                );
+            }
+
+            const startWeight = 178;
+            const goalWeight = 170;
+            const latestWeight = weightLog[currentWeek] || startWeight;
+            const weightLost = startWeight - latestWeight;
+            const progressPercent = Math.min(100, ((startWeight - latestWeight) / (startWeight - goalWeight)) * 100);
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-4">
+                    <div className="max-w-6xl mx-auto">
+                        {/* Header */}
+                        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h1 className="text-3xl font-bold text-gray-800">6-Month Transformation</h1>
+                                <div className="text-right text-sm">
+                                    {saving ? (
+                                        <span className="text-yellow-600">⏳ Saving...</span>
+                                    ) : lastSync ? (
+                                        <span className="text-green-600">✓ Synced {lastSync.toLocaleTimeString()}</span>
+                                    ) : null}
+                                    <button onClick={loadData} className="block text-blue-600 hover:text-blue-700">
+                                        🔄 Refresh
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Progress Cards */}
+                            <div className="grid md:grid-cols-4 gap-4 mb-4">
+                                <div className="bg-blue-50 p-4 rounded-lg">
+                                    <div className="text-sm text-gray-600">Current Week</div>
+                                    <div className="text-2xl font-bold text-blue-600">Week {currentWeek}/24</div>
+                                </div>
+                                <div className="bg-green-50 p-4 rounded-lg">
+                                    <div className="text-sm text-gray-600">Current Weight</div>
+                                    <div className="text-2xl font-bold text-green-600">{latestWeight} lbs</div>
+                                </div>
+                                <div className="bg-purple-50 p-4 rounded-lg">
+                                    <div className="text-sm text-gray-600">Weight Lost</div>
+                                    <div className="text-2xl font-bold text-purple-600">{weightLost.toFixed(1)} lbs</div>
+                                </div>
+                                <div className="bg-yellow-50 p-4 rounded-lg">
+                                    <div className="text-sm text-gray-600">To Goal</div>
+                                    <div className="text-2xl font-bold text-yellow-600">{(latestWeight - goalWeight).toFixed(1)} lbs</div>
+                                </div>
+                            </div>
+
+                            {/* Progress Bar */}
+                            <div className="mb-4">
+                                <div className="flex justify-between text-sm text-gray-600 mb-1">
+                                    <span>Progress to Goal</span>
+                                    <span>{progressPercent.toFixed(0)}%</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-3">
+                                    <div 
+                                        className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full"
+                                        style={{ width: `${progressPercent}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => {
+                                        setSelectedWeek(currentWeek);
+                                        setTempWeight(weightLog[currentWeek] || '');
+                                        setShowWeightModal(true);
+                                    }}
+                                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                >
+                                    Log Weight
+                                </button>
+                                {currentWeek < 24 && (
+                                    <button
+                                        onClick={() => goToWeek(currentWeek + 1)}
+                                        className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                    >
+                                        Next Week
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Daily Weight */}
+                        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                            <h2 className="text-xl font-bold mb-4">📊 Daily Weight</h2>
+                            <div className="flex gap-2">
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={todayWeight}
+                                    onChange={(e) => setTodayWeight(e.target.value)}
+                                    placeholder="Today's weight"
+                                    className="flex-1 border rounded px-3 py-2"
+                                />
+                                <button
+                                    onClick={saveDailyWeight}
+                                    className="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600"
+                                >
+                                    Save
+                                </button>
+                            </div>
+                            {getWeeklyAverage() && (
+                                <p className="text-sm text-gray-600 mt-2">
+                                    7-day average: <span className="font-bold">{getWeeklyAverage()} lbs</span>
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Phases */}
+                        {phases.map(phase => (
+                            <div key={phase.id} className="bg-white rounded-lg shadow-lg mb-4">
+                                <div 
+                                    className="bg-gradient-to-r from-green-500 to-blue-500 text-white p-6 cursor-pointer flex justify-between"
+                                    onClick={() => setExpandedPhase(expandedPhase === phase.id ? null : phase.id)}
+                                >
+                                    <h2 className="text-2xl font-bold">{phase.name}</h2>
+                                    {expandedPhase === phase.id ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+                                </div>
+
+                                {expandedPhase === phase.id && (
+                                    <div className="p-6">
+                                        {phase.weeks.map(week => (
+                                            <div key={week} className={`mb-4 border-2 rounded-lg ${week === currentWeek ? 'border-blue-500' : 'border-gray-200'}`}>
+                                                <div 
+                                                    className="p-4 cursor-pointer bg-gray-50"
+                                                    onClick={() => toggleWeek(phase.id, week)}
+                                                >
+                                                    <div className="flex justify-between">
+                                                        <span className="font-semibold">Week {week}</span>
+                                                        {expandedWeek[`${phase.id}-${week}`] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                                    </div>
+                                                    <div className="text-sm text-gray-600">{getWeekCompletion(week)}% complete</div>
+                                                </div>
+
+                                                {expandedWeek[`${phase.id}-${week}`] && (
+                                                    <div className="p-4">
+                                                        {phase.schedule.map(day => (
+                                                            <div key={day.id} className="mb-3 border rounded">
+                                                                <div 
+                                                                    className="bg-gray-50 p-3 cursor-pointer flex justify-between"
+                                                                    onClick={() => toggleDay(week, day.id)}
+                                                                >
+                                                                    <span className="font-semibold text-sm">{day.day}</span>
+                                                                    {expandedDay[`${week}-${day.id}`] ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                                                                </div>
+
+                                                                {expandedDay[`${week}-${day.id}`] && (
+                                                                    <div className="p-3">
+                                                                        {day.exercises.map((exercise, idx) => {
+                                                                            const key = `w${week}-d${day.id}-e${idx}`;
+                                                                            const isCompleted = completedWorkouts[key];
+                                                                            return (
+                                                                                <div 
+                                                                                    key={idx}
+                                                                                    className={`flex items-center p-2 rounded cursor-pointer mb-1 ${isCompleted ? 'bg-green-50' : 'bg-gray-50'}`}
+                                                                                    onClick={() => toggleWorkout(week, day.id, idx)}
+                                                                                >
+                                                                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mr-2 flex-shrink-0 ${isCompleted ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                                                                                        {isCompleted && <Check size={14} className="text-white" />}
+                                                                                    </div>
+                                                                                    <span className="text-sm">{exercise.name}</span>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+
+                        {/* Weight Modal */}
+                        {showWeightModal && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                                <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                                    <h3 className="text-xl font-bold mb-4">Log Weight - Week {selectedWeek}</h3>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        value={tempWeight}
+                                        onChange={(e) => setTempWeight(e.target.value)}
+                                        placeholder="Weight in lbs"
+                                        className="w-full border rounded px-3 py-2 mb-4"
+                                    />
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={saveWeightForWeek}
+                                            className="flex-1 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                        >
+                                            Save
+                                        </button>
+                                        <button
+                                            onClick={() => setShowWeightModal(false)}
+                                            className="flex-1 bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ExerciseTracker />);
+    </script>
+</body>
+</html>
