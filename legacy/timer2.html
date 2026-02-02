@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workout Timer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .timer-container {
+            text-align: center;
+            color: white;
+            width: 100%;
+            padding: 2rem;
+        }
+
+        .set-progress {
+            font-size: 2rem;
+            font-weight: 300;
+            margin-bottom: 1rem;
+            opacity: 0.9;
+        }
+
+        .countdown {
+            font-size: 12rem;
+            font-weight: 700;
+            line-height: 1;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            margin: 2rem 0;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .status {
+            font-size: 1.5rem;
+            margin: 1rem 0;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            font-weight: 500;
+        }
+
+        .controls {
+            margin-top: 3rem;
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .controls button {
+            font-size: 1.2rem;
+            padding: 1rem 2rem;
+            border: 2px solid white;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s;
+            backdrop-filter: blur(10px);
+            font-weight: 600;
+        }
+
+        .controls button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+
+        .controls button:active {
+            transform: scale(0.95);
+        }
+
+        .controls button.primary {
+            background: rgba(255, 255, 255, 0.9);
+            color: #667eea;
+        }
+
+        .controls button.primary:hover {
+            background: white;
+        }
+
+        .settings-toggle {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 2px solid white;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            cursor: pointer;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+        }
+
+        .settings-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: rotate(90deg);
+        }
+
+        .settings-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 2rem;
+            box-shadow: -5px 0 20px rgba(0,0,0,0.2);
+            transition: right 0.3s;
+            overflow-y: auto;
+            color: #333;
+        }
+
+        .settings-panel.open {
+            right: 0;
+        }
+
+        .settings-panel h2 {
+            margin-top: 0;
+            color: #667eea;
+        }
+
+        .settings-panel label {
+            display: block;
+            margin: 1.5rem 0 0.5rem;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .settings-panel input {
+            width: 100%;
+        }
+
+        .settings-panel input[type="number"] {
+            font-size: 1.2rem;
+            text-align: center;
+        }
+
+        .progress-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.8);
+            transition: width 0.3s;
+        }
+
+        .flash {
+            animation: flash 0.5s ease-in-out;
+        }
+
+        @keyframes flash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .work-mode {
+            background: linear-gradient(135deg, #e82838 0%, #51252b 100%);
+        }
+
+        .rest-mode {
+            background: linear-gradient(135deg, #33938b 0%, #204df1 100%);
+        }
+
+        .complete-mode {
+            background: linear-gradient(135deg, #2caf2a 0%, #049a54 100%);
+        }
+
+        @media (max-width: 768px) {
+            .countdown {
+                font-size: 8rem;
+            }
+            .set-progress {
+                font-size: 1.5rem;
+            }
+            .status {
+                font-size: 1.2rem;
+            }
+            .controls button {
+                font-size: 1rem;
+                padding: 0.8rem 1.5rem;
+            }
+            .settings-panel {
+                width: 100%;
+                right: -100%;
+            }
+        }
+
+        .home-link {
+            position: fixed;
+            top: 2rem;
+            left: 2rem;
+            color: white;
+            text-decoration: none;
+            font-size: 1rem;
+            padding: 0.5rem 1rem;
+            border: 2px solid white;
+            border-radius: 50px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+        }
+
+        .home-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="home-link">← Home</a>
+
+    <button class="settings-toggle" onclick="toggleSettings()">⚙️</button>
+
+    <div class="settings-panel" id="settings">
+        <h2>Timer Settings</h2>
+        
+        <label for="totalSets">Total Sets</label>
+        <input type="number" id="totalSets" min="1" max="20" value="7">
+        
+        <label for="workTime">Work Time (seconds)</label>
+        <input type="number" id="workTime" min="5" max="300" value="30">
+        <small>Time to perform your reps</small>
+        
+        <label for="restTime">Rest Time (seconds)</label>
+        <input type="number" id="restTime" min="5" max="300" value="60">
+        <small>Recovery between sets</small>
+
+        <label>
+            <input type="checkbox" id="soundEnabled" checked>
+            Sound alerts
+        </label>
+
+        <button onclick="applySettings()" style="margin-top: 2rem; width: 100%;">
+            Apply Settings
+        </button>
+
+        <button onclick="toggleSettings()" style="margin-top: 0.5rem; width: 100%; background: #ccc;">
+            Close
+        </button>
+    </div>
+
+    <div class="timer-container">
+        <div class="set-progress" id="setProgress">Set 1 of 7</div>
+        <div class="countdown" id="countdown">0:30</div>
+        <div class="status" id="status">Ready to Start</div>
+        
+        <div class="controls">
+            <button class="primary" onclick="startPause()" id="startBtn">Start</button>
+            <button onclick="reset()">Reset</button>
+            <button onclick="skipSet()">Skip Phase</button>
+        </div>
+    </div>
+
+    <div class="progress-bar" id="progressBar"></div>
+
+    <script>
+        // Settings
+        let totalSets = 7;
+        let workTime = 30;
+        let restTime = 60;
+        let soundEnabled = true;
+        
+        // Timer state
+        let currentSet = 1;
+        let currentPhase = 'ready'; // 'ready', 'work', 'rest', 'complete'
+        let timeRemaining = workTime;
+        let timerInterval = null;
+        let isRunning = false;
+
+        // Audio context for beep
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        function beep(frequency = 800, duration = 200) {
+            if (!soundEnabled) return;
+            
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = frequency;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration / 1000);
+        }
+
+        function toggleSettings() {
+            document.getElementById('settings').classList.toggle('open');
+        }
+
+        function applySettings() {
+            totalSets = parseInt(document.getElementById('totalSets').value);
+            workTime = parseInt(document.getElementById('workTime').value);
+            restTime = parseInt(document.getElementById('restTime').value);
+            soundEnabled = document.getElementById('soundEnabled').checked;
+            
+            reset();
+            toggleSettings();
+        }
+
+        function updateDisplay() {
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
+            document.getElementById('countdown').textContent = 
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            if (currentPhase === 'complete') {
+                document.getElementById('setProgress').textContent = '🎉 Complete!';
+            } else {
+                document.getElementById('setProgress').textContent = 
+                    `Set ${currentSet} of ${totalSets}`;
+            }
+            
+            // Update progress bar
+            const totalWorkTime = totalSets * workTime;
+            const totalRestTime = totalSets * restTime;
+            const totalTime = totalWorkTime + totalRestTime;
+            
+            let elapsedTime = 0;
+            if (currentPhase === 'work') {
+                elapsedTime = ((currentSet - 1) * (workTime + restTime)) + (workTime - timeRemaining);
+            } else if (currentPhase === 'rest') {
+                elapsedTime = ((currentSet - 1) * (workTime + restTime)) + workTime + (restTime - timeRemaining);
+            } else if (currentPhase === 'complete') {
+                elapsedTime = totalTime;
+            }
+            
+            const progressPercent = (elapsedTime / totalTime) * 100;
+            document.getElementById('progressBar').style.width = `${progressPercent}%`;
+        }
+
+        function startPause() {
+            if (currentPhase === 'complete') {
+                reset();
+                return;
+            }
+
+            if (currentPhase === 'ready') {
+                currentPhase = 'work';
+                timeRemaining = workTime;
+            }
+
+            isRunning = !isRunning;
+            const btn = document.getElementById('startBtn');
+            const status = document.getElementById('status');
+            
+            if (isRunning) {
+                btn.textContent = 'Pause';
+                updateStatus();
+                updateBodyClass();
+                timerInterval = setInterval(tick, 1000);
+            } else {
+                btn.textContent = 'Resume';
+                status.textContent = 'Paused';
+                clearInterval(timerInterval);
+            }
+        }
+
+        function updateStatus() {
+            const status = document.getElementById('status');
+            if (currentPhase === 'work') {
+                status.textContent = '💪 WORK TIME';
+            } else if (currentPhase === 'rest') {
+                status.textContent = '😌 REST';
+            } else if (currentPhase === 'complete') {
+                status.textContent = 'Workout Complete! 💪';
+            } else {
+                status.textContent = 'Ready to Start';
+            }
+        }
+
+        function updateBodyClass() {
+            document.body.classList.remove('work-mode', 'rest-mode', 'complete-mode');
+            if (currentPhase === 'work') {
+                document.body.classList.add('work-mode');
+            } else if (currentPhase === 'rest') {
+                document.body.classList.add('rest-mode');
+            } else if (currentPhase === 'complete') {
+                document.body.classList.add('complete-mode');
+            }
+        }
+
+        function tick() {
+            timeRemaining--;
+            
+            // Flash and beep on last 3 seconds
+            if (timeRemaining <= 3 && timeRemaining > 0) {
+                document.querySelector('.countdown').classList.add('flash');
+                beep(1000, 150);
+                setTimeout(() => {
+                    document.querySelector('.countdown').classList.remove('flash');
+                }, 500);
+            }
+            
+            if (timeRemaining <= 0) {
+                // Phase transition
+                if (currentPhase === 'work') {
+                    // Work done, start rest
+                    beep(1200, 300);
+                    setTimeout(() => beep(1200, 300), 400);
+                    
+                    currentPhase = 'rest';
+                    timeRemaining = restTime;
+                    updateStatus();
+                    updateBodyClass();
+                    
+                } else if (currentPhase === 'rest') {
+                    // Rest done
+                    beep(1200, 300);
+                    
+                    if (currentSet >= totalSets) {
+                        // All sets complete
+                        completeWorkout();
+                    } else {
+                        // Move to next set
+                        currentSet++;
+                        currentPhase = 'work';
+                        timeRemaining = workTime;
+                        updateStatus();
+                        updateBodyClass();
+                        
+                        // Triple beep for new set
+                        setTimeout(() => beep(1400, 200), 400);
+                        setTimeout(() => beep(1400, 200), 700);
+                    }
+                }
+            }
+            
+            updateDisplay();
+        }
+
+        function completeWorkout() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            currentPhase = 'complete';
+            timeRemaining = 0;
+            
+            updateBodyClass();
+            updateStatus();
+            document.getElementById('startBtn').textContent = 'Start New';
+            
+            updateDisplay();
+        }
+
+        function reset() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            currentPhase = 'ready';
+            currentSet = 1;
+            timeRemaining = workTime;
+            
+            document.body.classList.remove('work-mode', 'rest-mode', 'complete-mode');
+            updateStatus();
+            document.getElementById('startBtn').textContent = 'Start';
+            
+            updateDisplay();
+        }
+
+        function skipSet() {
+            if (!isRunning || currentPhase === 'complete' || currentPhase === 'ready') return;
+            
+            beep(600, 100);
+            
+            if (currentPhase === 'work') {
+                // Skip to rest
+                currentPhase = 'rest';
+                timeRemaining = restTime;
+                updateStatus();
+                updateBodyClass();
+            } else if (currentPhase === 'rest') {
+                // Skip to next set
+                if (currentSet >= totalSets) {
+                    completeWorkout();
+                } else {
+                    currentSet++;
+                    currentPhase = 'work';
+                    timeRemaining = workTime;
+                    updateStatus();
+                    updateBodyClass();
+                }
+            }
+            
+            updateDisplay();
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                startPause();
+            } else if (e.code === 'KeyR') {
+                reset();
+            } else if (e.code === 'KeyS') {
+                skipSet();
+            }
+        });
+
+        // Initialize display
+        updateDisplay();
+    </script>
+</body>
+</html>
